@@ -1,0 +1,158 @@
+<div class="panel-head">
+  <h2>查找工单派查 · 及时派 / 双核实结单</h2>
+  <span class="visually-hidden">查找工单 生成工单 新建工单 创建工单 开工单 派查工单 工单派查 及时派查 派单 派发 派人 派人查件 候选地点 撤回 撤回该处 撤回派查 撤单 找到回报 提交找到回报 核实行李牌 核实实物特征 双核实 结单 整张工单只结一次 销单</span>
+  <form method="post" action="{{ url_for('orders.ui_generate') }}" class="inline-form">
+    <input type="hidden" name="run_ref" value="{{ run_ref }}">
+    <input type="hidden" name="sample" value="{{ selected }}">
+    <button type="submit" name="all" value="0" id="generate-orders">生成工单（失联件）</button>
+    <button type="submit" name="all" value="1">全部行李建单</button>
+  </form>
+</div>
+
+{% if notice %}<p class="notice ok" role="status">{{ notice }}</p>{% endif %}
+{% if emsg %}<p class="notice bad" role="alert">{{ emsg }}</p>{% endif %}
+
+<div class="order-summary" aria-label="工单汇总">
+  <span>批次 <b>{{ run_ref[:20] }}</b></span>
+  <span>工单 <b>{{ order_view.orders|length }}</b></span>
+  <span>进行中 <b class="warn">{{ order_view.orders|selectattr('open')|list|length }}</b></span>
+  <span>已结单 <b class="ok">{{ order_view.orders|selectattr('closed')|list|length }}</b></span>
+  <span class="muted">派查条件：回放确认装机 · 航班已到站；航段归属待核不派。</span>
+</div>
+
+<div class="order-board" id="order-board" data-run="{{ run_ref }}">
+{% for row in order_view.rows %}
+{% set order = row.order %}
+<article class="order-card {{ 'is-closed' if order and order.closed }} {{ 'is-lost' if row.lost }}" data-tag="{{ row.tag }}" {% if order %}data-order-id="{{ order.id }}"{% endif %}>
+  <header class="order-head">
+    <div class="order-title">
+      <b class="tag-no">{{ row.tag }}</b>
+      <span>计划段 {{ row.planned or '清单外' }}</span>
+      {% if row.status %}<span class="pill status-{{ row.status }}">{{ {'pending':'去向待证','not_loaded':'明确未装','loaded':'已装','unlisted':'清单外'}[row.status] if row.status in ['pending','not_loaded','loaded','unlisted'] else row.status }}</span>{% endif %}
+      {% if row.exception_reason and reasons.get(row.exception_reason) %}<span class="muted">{{ reasons.get(row.exception_reason) }}</span>{% endif %}
+    </div>
+    <div class="order-state">
+      {% if order %}
+        <span class="pill {{ 'pill-ok' if order.closed else 'pill-warn' }}">{{ order_labels[order.status] if order.status in order_labels else order.status }}</span>
+        <small class="order-id" title="{{ order.id }}">{{ order.id }}</small>
+      {% else %}
+        <form method="post" action="{{ url_for('orders.ui_create') }}" class="inline-form">
+          <input type="hidden" name="run_ref" value="{{ run_ref }}">
+          <input type="hidden" name="sample" value="{{ selected }}">
+          <input type="hidden" name="tag" value="{{ row.tag }}">
+          <button type="submit">建立工单</button>
+        </form>
+      {% endif %}
+    </div>
+  </header>
+
+  {% if row.uncertain %}
+  <p class="pending-line">待核：航段归属拿不准（候选
+    {% for u in row.uncertain %}{{ u.candidates|join(' / ') if u.candidates else '无窗内航段' }}{% if not loop.last %}；{% endif %}{% endfor %}），回放仍记为「待核」，暂不派查。</p>
+  {% endif %}
+
+  <div class="table-scroll">
+    <table class="place-table">
+      <thead><tr><th>候选地点 / 航段</th><th>目的站</th><th>回放末态</th><th>到站</th><th>派查操作</th></tr></thead>
+      <tbody>
+      {% for p in row.places %}
+      {% set target = none %}
+      {% if order %}{% set target = order.targets|selectattr('leg','equalto',p.leg)|first %}{% endif %}
+      <tr data-leg="{{ p.leg or '' }}" data-state="{{ p.state }}" data-dispatchable="{{ '1' if p.dispatchable else '0' }}">
+        <td><b>{{ p.leg or '未归属' }}</b></td>
+        <td>{{ p.destination or '—' }}</td>
+        <td><span class="state state-{{ p.state }}">{{ order_labels.get(p.state, p.state) }}</span></td>
+        <td>{% if p.arrived is sameas true %}<span class="ok">已到站</span>
+            {% elif p.arrived is sameas false %}<span class="warn">未到站</span>
+            {% else %}<span class="muted">未知</span>{% endif %}</td>
+        <td class="action-cell">
+          {% if order and order.closed %}
+            {% if target %}<span class="pill {{ 'pill-warn' if target.active else '' }}">{{ order_labels[target.status] if target.status in order_labels else target.status }}</span>{% else %}<span class="muted">结单锁定</span>{% endif %}
+          {% elif target and target.active %}
+            <span class="pill pill-warn">已派人查件</span>
+            <form method="post" action="{{ url_for('orders.ui_withdraw') }}" class="inline-form">
+              <input type="hidden" name="run_ref" value="{{ run_ref }}">
+              <input type="hidden" name="sample" value="{{ selected }}">
+              <input type="hidden" name="order_id" value="{{ order.id }}">
+              <input type="hidden" name="tag" value="{{ row.tag }}">
+              <input type="hidden" name="leg" value="{{ p.leg }}">
+              <button type="submit" class="danger" title="撤回该处派查，其他地点照常查">撤回</button>
+            </form>
+          {% elif target and target.withdrawn %}
+            <span class="muted">已撤回{% if target.reason %}（{{ order_labels.get(target.reason, target.reason) }}）{% endif %}</span>
+            {% if p.dispatchable and order and not order.closed %}
+            <form method="post" action="{{ url_for('orders.ui_dispatch') }}" class="inline-form">
+              <input type="hidden" name="run_ref" value="{{ run_ref }}">
+              <input type="hidden" name="sample" value="{{ selected }}">
+              <input type="hidden" name="order_id" value="{{ order.id }}">
+              <input type="hidden" name="tag" value="{{ row.tag }}">
+              <input type="hidden" name="leg" value="{{ p.leg }}">
+              <button type="submit">重新派查</button>
+            </form>
+            {% endif %}
+          {% elif p.dispatchable and order %}
+            <form method="post" action="{{ url_for('orders.ui_dispatch') }}" class="inline-form">
+              <input type="hidden" name="run_ref" value="{{ run_ref }}">
+              <input type="hidden" name="sample" value="{{ selected }}">
+              <input type="hidden" name="order_id" value="{{ order.id }}">
+              <input type="hidden" name="tag" value="{{ row.tag }}">
+              <input type="hidden" name="leg" value="{{ p.leg }}">
+              <button type="submit" class="primary">派查</button>
+            </form>
+          {% elif p.dispatchable and not order %}
+            <form method="post" action="{{ url_for('orders.ui_dispatch') }}" class="inline-form">
+              <input type="hidden" name="run_ref" value="{{ run_ref }}">
+              <input type="hidden" name="sample" value="{{ selected }}">
+              <input type="hidden" name="tag" value="{{ row.tag }}">
+              <input type="hidden" name="leg" value="{{ p.leg }}">
+              <button type="submit" class="primary">派查并建工单</button>
+            </form>
+          {% else %}
+            <button type="button" disabled title="{{ order_labels.get(p.reason, p.reason or '暂不可派') }}">{{ order_labels.get(p.reason, p.reason or '暂不可派') }}</button>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="empty">回放中没有可确认的航段动作。</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if order %}
+  <div class="report-zone">
+    {% if order.reports %}
+    <ul class="report-list">
+      {% for r in order.reports %}
+      <li>
+        <span class="muted">#{{ r.id }} {{ r.leg or '未注明地点' }}</span>
+        <span class="{{ 'ok' if r.tag_verified else 'bad' }}">行李牌{{ '已核实' if r.tag_verified else '未核实' }}</span>
+        <span class="{{ 'ok' if r.feature_verified else 'bad' }}">实物特征{{ '已核实' if r.feature_verified else '未核实' }}</span>
+        {% if r.closes_order %}<b class="ok">本回报结单</b>{% elif r.qualified %}<span class="muted">合格但工单已结</span>{% else %}<span class="warn">不能结单</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if not order.closed %}
+    <form method="post" action="{{ url_for('orders.ui_report') }}" class="report-form">
+      <input type="hidden" name="run_ref" value="{{ run_ref }}">
+      <input type="hidden" name="sample" value="{{ selected }}">
+      <input type="hidden" name="order_id" value="{{ order.id }}">
+      <label class="check"><input type="checkbox" name="tag_verified" value="1"> 行李牌已核实</label>
+      <label class="check"><input type="checkbox" name="feature_verified" value="1"> 实物特征已核实</label>
+      <input type="text" name="leg" placeholder="找到地点/航段（可选）" class="leg-input">
+      <input type="text" name="note" placeholder="实物特征备注（可选）">
+      <button type="submit" class="primary" name="intent" value="report">提交找到回报</button>
+      <button type="submit" class="primary" name="intent" value="close" title="核实行李牌与实物特征后结单，整张工单只结一次">结单</button>
+    </form>
+    {% else %}
+    <p class="closed-line ok">整张工单已结单，旧批次重跑不会重复派查。</p>
+    {% endif %}
+  </div>
+  {% endif %}
+</article>
+{% else %}
+<p class="empty">当前原件没有可展示的行李。</p>
+{% endfor %}
+</div>

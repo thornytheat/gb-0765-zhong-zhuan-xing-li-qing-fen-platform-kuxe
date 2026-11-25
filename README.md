@@ -11,7 +11,8 @@
 1. 默认打开跨日转运样例，核对清单 12 件、已装 3 件、待证 8 件、明确未装 1 件，另见错装 2 件。
 2. 航段候选查 `000103`。扫件回放查 `000101` 的迟到撤下。错载与漏扫可以按行李牌筛选。
 3. 点击归档复算，在批次留档复算本批，在联程证据下载原件、逐阶段行证和散列。
-4. API 支持 `POST /api/archive`，提交 `{"sample":"dirty"}` 或 `{"files":{"scans.csv":"…","legs.csv":"…","manifest.csv":"…"}}`。前五阶段可用 `GET /api/stage/<key>`，键为 `scans`、`legs`、`replay`、`exceptions`、`ledger`。用 `?run=<id>` 查归档，用 `?sample=clean` 查净样例。
+4. 查找工单页 `/desk/orders`：`000108` 两处确认装机可分别派查，`000103` 航段归属待核不可派；迟到撤下后可按点撤回，双核实找到回报只结一次单，旧批次复跑不重复派查。
+5. API 支持 `POST /api/archive`，提交 `{"sample":"dirty"}` 或 `{"files":{"scans.csv":"…","legs.csv":"…","manifest.csv":"…"}}`。前五阶段可用 `GET /api/stage/<key>`，键为 `scans`、`legs`、`replay`、`exceptions`、`ledger`。用 `?run=<id>` 查归档，用 `?sample=clean` 查净样例。工单接口前缀 `/api/orders`（生成、`<id>/dispatch`、`<id>/withdraw`、`<id>/found`、`<id>/reconcile`）。
 
 字段与边界见 [数据定义](docs/DATA-DICTIONARY.md)，入口和可执行反例见 [深度登记](docs/DEPTH.md)。
 

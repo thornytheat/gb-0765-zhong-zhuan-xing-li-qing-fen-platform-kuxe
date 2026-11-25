@@ -6,6 +6,8 @@ from .errors import DeskError
 from .modules.archive.routes import bp as archive
 from .modules.archive.store import Archive
 from .modules.evidence.routes import bp as evidence
+from .modules.orders.routes import bp as orders
+from .modules.orders.store import OrderStore
 from .web import bp as desk
 
 
@@ -14,8 +16,10 @@ def create_app(path=None):
     app.select_jinja_autoescape = lambda name: name is None or name.endswith(('.html', '.jinja'))
     app.url_map.redirect_defaults = False
     app.config['MAX_CONTENT_LENGTH'] = 2_000_000
-    app.extensions['transfer_archive'] = Archive(path or os.getenv('LUGGAGE_DB', 'var/transfer.sqlite3'))
-    for routes in (archive, evidence, desk):
+    db_path = path or os.getenv('LUGGAGE_DB', 'var/transfer.sqlite3')
+    app.extensions['transfer_archive'] = Archive(db_path)
+    app.extensions['order_book'] = OrderStore(db_path)
+    for routes in (archive, evidence, orders, desk):
         app.register_blueprint(routes)
 
     @app.get('/health')
@@ -27,7 +31,11 @@ def create_app(path=None):
         if not request.path.startswith('/api/'):
             from flask import render_template
             return render_template('error.jinja', message=str(error)), error.status
-        return jsonify(code=error.code, message=str(error)), error.status
+        payload = dict(code=error.code, message=str(error))
+        reason = getattr(error, 'reason', None)
+        if reason:
+            payload['reason'] = reason
+        return jsonify(payload), error.status
 
     @app.errorhandler(RequestEntityTooLarge)
     def too_big(_):

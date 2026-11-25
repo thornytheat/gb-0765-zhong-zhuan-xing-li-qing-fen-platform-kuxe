@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>中转行李清分台</title>
 {% for file in ['theme','layout','components'] %}<link rel="stylesheet" href="{{ url_for('static', filename=file ~ '.css') }}">{% endfor %}
+{% if key == 'orders' %}<link rel="stylesheet" href="{{ url_for('static', filename='orders.css') }}">{% endif %}
 <script type="module" src="{{ url_for('static', filename='desk.js') }}"></script></head>
 <body><div class="console">
 <nav aria-label="中转业务"><a class="brand" href="/"><span class="belt-icon" aria-hidden="true"></span>联程席</a><div class="nav-caption">中转值机 · 核验</div>
@@ -16,7 +17,7 @@
 <div class="station">
 <section class="panel primary">{% include key ~ ('.jinja' if key == 'ledger' else '.html') %}</section>
 <aside class="panel telemetry"><div class="panel-head"><h2>扫描尾</h2><button type="button" id="pause" aria-pressed="false">暂停扫描尾</button></div><ol id="scan-tail" tabindex="0"></ol>
-<template id="tail-source">{% for row in stages.replay.rows|sort(attribute='received') %}<li><time>{{ row.received[11:19] }}</time><span class="{{ 'warn' if row.late else 'neutral' }}">{{ '迟到' if row.late else '记录' }}</span><b>{{ row.tag }}</b><span>{{ row.leg }} · {{ row.action }}</span></li>{% endfor %}</template></aside>
+<template id="tail-source">{% for row in stages.replay.rows|sort(attribute='received') %}<li><time>{{ row.received[11:19] }}</time><span class="{{ 'warn' if row.late else 'neutral' }}">{{ '迟到' if row.late else ('待核' if row.pending else '记录') }}</span><b>{{ row.tag }}</b><span>{{ row.leg or (row.candidates|join('/') if row.candidates else '待核') }} · {{ row.action }}</span></li>{% endfor %}</template></aside>
 
 </div></main>
 <footer><span>席位 / TRANSFER</span><span id="feedback" role="status">{{ manifest.version if manifest else 'LEG-LUGGAGE / 1' }}</span><time>{{ manifest.generated_at[:19] if manifest else '离线预览' }}</time></footer>

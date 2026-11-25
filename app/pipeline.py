@@ -15,7 +15,7 @@ def compute(files, until=None):
     linked.update(legs=list(legs.values()), manifest=list(manifest.values()), reference_isolated=master_errors)
     if until == 'legs':
         return linked
-    history = replay(linked['rows'])
+    history = replay(linked['rows'], pending_rows=linked['isolated'])
     if until == 'replay':
         return history
     decisions = classify(manifest, history['states'], scans['isolated'] + linked['isolated'])

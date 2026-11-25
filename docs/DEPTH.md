@@ -13,6 +13,7 @@
 | M5 行李去向对账 | 勾稽计划段与去向件数 | `/` `/api/stage/ledger` | `app/modules/ledger/service.py` | `tests/test_ledger.py` |
 | M6 批次留档复跑 | 保存并复算原件 | `/desk/archive` `POST /api/archive` | `app/modules/archive/service.py` `app/modules/archive/store.py` | `tests/test_archive.py` |
 | M7 联程证据签发 | 验摘要并下载联程证据 | `/desk/evidence` `/api/evidence/<run>/export` | `app/modules/evidence/bundle.py` | `tests/test_evidence.py` |
+| M8 查找工单派查 | 候选点及时派查、按点撤回、双核实结单 | `/desk/orders` `/api/orders` | `app/modules/orders/service.py` `app/modules/orders/store.py` `app/modules/orders/routes.py` | `tests/test_orders.py` |
 
 ## 陷阱登记
 
@@ -31,6 +32,15 @@
 ## 对账规则
 
 脏样例清单 12 = 3 已装 + 8 待证 + 1 明确未装，错装 2 件另列。扫描原件记录 24 = 17 采信 + 4 隔离 + 1 重报 + 1 重复表头 + 1 空行。
+
+## 查找工单规则（M8）
+
+- 航段归属拿不准（`LEG_AMBIGUOUS`/`LEG_MISSING`）的扫件在回放 `pending` 中保持 `PENDING`/待核，候选航段不派查。
+- 派查点资格 = 回放末态 `LOADED` 且航段 `end`（到站时刻）不晚于当前 UTC；可用请求参数 `now` 或 `app.clock.now` 注入时间。各候选点独立放行，不等另一处核齐。
+- 迟到撤下按生效时刻回放；重算后某点末态不再是 `LOADED` 时，`POST /api/orders/<id>/reconcile` 只把该点 target 置 `withdrawn`，其他 `dispatched` 点不动。
+- 找到回报必须同时核实行李牌（`tag_verified`）与实物特征（`feature_verified`）才触发结单。结单用条件 `UPDATE ... WHERE status!='closed'` 保证并发下只有一个调用拿到 `closed=true`，整张工单只结一次。
+- 工单与派查点以 `(run_id, tag)`、`(order_id, leg)` 唯一；归档重跑得到同一 run id，重复生成/派查为幂等 no-op，已结单工单不再派查。工单状态存于同一 SQLite 的 `wo_*` 表，不进入归档结果散列。
+- 页面 `/desk/orders` 的表单走原生 POST→303→GET，无脚本也能完成生成、派查、撤回、双核实回报与结单。
 
 ## 已知范围
 

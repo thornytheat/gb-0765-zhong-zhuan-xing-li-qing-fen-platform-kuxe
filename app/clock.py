@@ -6,3 +6,8 @@ def utc(value):
     if stamp.utcoffset() is None:
         raise ValueError('timezone required')
     return stamp.astimezone(timezone.utc).isoformat(timespec='microseconds').replace('+00:00', 'Z')
+
+
+def now():
+    """Current UTC moment; tests and callers may monkeypatch this provider."""
+    return datetime.now(timezone.utc)

@@ -1,3 +1,6 @@
-<div class="panel-head"><h2>航段动作序列</h2><span>{{ stages.replay.counts.late }} 条迟到 · {{ stages.replay.counts.conflicts }} 条冲突</span></div>
+<div class="panel-head"><h2>航段动作序列</h2><span>{{ stages.replay.counts.late }} 条迟到 · {{ stages.replay.counts.conflicts }} 条冲突 · {{ stages.replay.pending_count }} 条待核</span></div>
 <div class="table-scroll"><table><thead><tr><th>行李牌</th><th>航段</th><th>生效 UTC</th><th>动作</th><th>前态</th><th>末态</th><th>原行</th></tr></thead><tbody>
-{% for row in stages.replay.rows %}<tr><td>{{ row.tag }}</td><td>{{ row.leg }}</td><td><time datetime="{{ row.effective }}">{{ row.effective[:19] }}</time></td><td>{{ row.action }}</td><td>{{ row.before }}</td><td>{{ row.after }}</td><td class="num">{{ row.line }}{{ ' · 迟到' if row.late }}</td></tr>{% endfor %}</tbody></table></div>
+{% for row in stages.replay.rows if not row.pending %}<tr><td>{{ row.tag }}</td><td>{{ row.leg }}</td><td><time datetime="{{ row.effective }}">{{ row.effective[:19] }}</time></td><td>{{ row.action }}</td><td>{{ row.before }}</td><td>{{ row.after }}</td><td class="num">{{ row.line }}{{ ' · 迟到' if row.late }}</td></tr>{% endfor %}
+{% for row in stages.replay.pending %}<tr class="pending-row"><td>{{ row.tag }}</td><td>{{ row.candidates|join(' / ') if row.candidates else (row.leg_hint or '未归属') }}</td><td><time datetime="{{ row.effective }}">{{ row.effective[:19] if row.effective else '—' }}</time></td><td>{{ row.action }}</td><td>{{ row.before or '—' }}</td><td><span class="state-PENDING">待核</span></td><td class="num">{{ row.line }} · {{ row.reason }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% if stages.replay.pending %}<p class="pending-line">航段归属拿不准的扫件在回放里仍记为「待核」，确认航段前不生成派查。</p>{% endif %}
